@@ -9,6 +9,7 @@ An app designed to help you stay in touch with friends. You can add people, stor
 - Add and edit flows for each person
 - Sort by name, bond, location, or when you met
 - Daily weighted generation with cooldown rules
+- Optional background auto-generation on your own computer
 - Responsive layout that works on mobile Safari and Chrome
 
 ## What You Need
@@ -36,6 +37,36 @@ npm start
 
 5. Keep that Terminal window open.
    The website only stays running while this command is running.
+
+## One-Click Launchers
+
+If you want easier startup scripts, use the files in:
+
+```text
+launchers/
+```
+
+Available launchers:
+
+- [run-jarona-mac.command](/Users/ahameed/Documents/GitHub/Jarona/launchers/run-jarona-mac.command)
+- [run-jarona-mac-iphone.command](/Users/ahameed/Documents/GitHub/Jarona/launchers/run-jarona-mac-iphone.command)
+- [run-jarona-linux.sh](/Users/ahameed/Documents/GitHub/Jarona/launchers/run-jarona-linux.sh)
+- [run-jarona-linux-iphone.sh](/Users/ahameed/Documents/GitHub/Jarona/launchers/run-jarona-linux-iphone.sh)
+- [run-jarona-windows.bat](/Users/ahameed/Documents/GitHub/Jarona/launchers/run-jarona-windows.bat)
+- [run-jarona-windows-iphone.bat](/Users/ahameed/Documents/GitHub/Jarona/launchers/run-jarona-windows-iphone.bat)
+
+Background auto-generation installers:
+
+- [install-jarona-macos-auto-generation.command](/Users/ahameed/Documents/GitHub/Jarona/automation/install-jarona-macos-auto-generation.command)
+- [install-jarona-linux-auto-generation.sh](/Users/ahameed/Documents/GitHub/Jarona/automation/install-jarona-linux-auto-generation.sh)
+- [install-jarona-windows-auto-generation.bat](/Users/ahameed/Documents/GitHub/Jarona/automation/install-jarona-windows-auto-generation.bat)
+
+What they do:
+
+- Install dependencies if needed
+- Start Jarona normally on your computer
+- Or start Jarona in iPhone-friendly mode with `HOST=0.0.0.0`
+- Or install a background scheduler that checks every hour and auto-generates once the profile reaches its allowed time
 
 ## How To Open It On Your Computer
 
@@ -234,7 +265,495 @@ What these mean:
 
 - If you close the browser tab, your saved data does not disappear
 - If you stop the server, the site goes offline until you run `npm start` again
+- If you install the background scheduler below, Jarona can still auto-generate daily people and update Google Calendar even when the website is not open in your browser
+- The computer still must be turned on and awake for background auto-generation to run
 - If you want to use this from anywhere, not just your home Wi-Fi, the next step would be deploying it to a real web host
+
+## Background Auto-Generation On Your Own Computer
+
+This section is for the case where you want Jarona to keep doing the daily generation and Google Calendar update even when the Jarona website is not open in your browser.
+
+What this does:
+
+- It runs a small background check once every hour on your own machine
+- Once a profile reaches its auto-generate time, Jarona generates that day's people if it has not already done so
+- If Google Calendar is connected for that profile, Jarona also creates or updates that day's Google Calendar event automatically
+
+What this does not do:
+
+- It does not run while your computer is off
+- It does not run while your computer is asleep
+- It does not replace the Jarona website server itself
+
+### Manual Test Command First
+
+Before you install the background scheduler, you can test the command manually.
+
+1. Open Terminal on Mac or Linux, or Command Prompt on Windows.
+2. Go to the Jarona project folder:
+
+```bash
+cd /Users/ahameed/Documents/GitHub/Jarona
+```
+
+3. Run:
+
+```bash
+npm run run-scheduled
+```
+
+4. Jarona will print one line per profile.
+5. If the profile is not due yet, it will say it was skipped.
+6. If the profile is due and ready, it will generate that day's people and sync Google Calendar if connected.
+
+### Turn It On For Mac
+
+1. Open Terminal.
+2. Go to the project folder:
+
+```bash
+cd /Users/ahameed/Documents/GitHub/Jarona
+```
+
+3. Make the installer executable:
+
+```bash
+chmod +x automation/install-jarona-macos-auto-generation.command
+```
+
+4. Run the installer:
+
+```bash
+./automation/install-jarona-macos-auto-generation.command
+```
+
+5. macOS will install a LaunchAgent named `com.jarona.autogenerate`.
+6. From then on, your Mac will check once every hour and also check again when you log in.
+7. The log file will be written here:
+
+```text
+/Users/ahameed/Documents/GitHub/Jarona/data/jarona-scheduler.log
+```
+
+### Turn It On For Linux
+
+1. Open Terminal.
+2. Go to the project folder:
+
+```bash
+cd /Users/ahameed/Documents/GitHub/Jarona
+```
+
+3. Make the installer executable:
+
+```bash
+chmod +x automation/install-jarona-linux-auto-generation.sh
+```
+
+4. Run the installer:
+
+```bash
+./automation/install-jarona-linux-auto-generation.sh
+```
+
+5. This adds a cron job that checks Jarona once every hour.
+6. The log file will be written here:
+
+```text
+/Users/ahameed/Documents/GitHub/Jarona/data/jarona-scheduler.log
+```
+
+### Turn It On For Windows
+
+1. Open File Explorer.
+2. Go to:
+
+```text
+C:\Users\ahameed\Documents\GitHub\Jarona\automation
+```
+
+3. Double-click:
+
+```text
+install-jarona-windows-auto-generation.bat
+```
+
+4. If Windows asks for permission, allow it.
+5. The installer will create two Scheduled Tasks:
+   - `Jarona Auto Generate Hourly`
+   - `Jarona Auto Generate On Login`
+6. After that, Windows will check Jarona every hour and once right after you sign in.
+
+### How The Background Schedule Works
+
+- Jarona checks every hour
+- It only generates if the profile has reached its allowed time
+- Right now the website setting is `12:00 PM` by default
+- If the machine misses exactly `12:00 PM`, Jarona will catch up on the next hourly check after that
+- The Google Calendar event is still created for `1:00 PM to 3:00 PM`
+
+### How To Verify It Worked
+
+1. Make sure your Jarona profile is logged in at least once and already has people added.
+2. Make sure Google Calendar is connected if you want automatic calendar updates.
+3. Run this command once:
+
+```bash
+cd /Users/ahameed/Documents/GitHub/Jarona
+npm run run-scheduled
+```
+
+4. Open:
+
+```text
+data/jarona-scheduler.log
+```
+
+5. Look for lines that start with either:
+   - `[generated]`
+   - `[skipped]`
+
+If you see `[generated]`, that means the background command completed a daily generation successfully.
+
+## Google Calendar Integration
+
+Jarona now supports a full Google OAuth + Google Calendar API integration for local use.
+
+What it does:
+
+- You connect your Google account once
+- Jarona creates a separate calendar named `Jarona`
+- When you generate people for the day, Jarona creates or updates that day's event inside that separate Jarona calendar
+- You can open that calendar directly from the website
+
+For normal personal use, this is typically free within Google's standard API quotas.
+
+### Full Start-To-Finish Setup
+
+### Step 1: Open Google Cloud Console
+
+1. Open this link:
+
+[https://console.cloud.google.com/](https://console.cloud.google.com/)
+
+2. Sign in with the Google account you want Jarona to use.
+3. At the top of the page, click the project dropdown.
+4. Click `New Project`.
+5. In `Project name`, type something like:
+
+```text
+Jarona Calendar
+```
+
+6. Click `Create`.
+7. Wait for Google Cloud to finish creating the project.
+8. Make sure that new project is selected at the top of the page.
+
+### Step 2: Enable The Google Calendar API
+
+1. Open this link while your new project is selected:
+
+[https://console.cloud.google.com/apis/library/calendar-json.googleapis.com](https://console.cloud.google.com/apis/library/calendar-json.googleapis.com)
+
+2. Click the `Enable` button.
+3. Wait until the API is enabled.
+
+### Step 3: Set Up The OAuth Consent Screen
+
+1. Open this page:
+
+[https://console.cloud.google.com/auth/overview](https://console.cloud.google.com/auth/overview)
+
+2. Click `Get started` if Google shows it.
+3. In `App name`, type:
+
+```text
+Jarona
+```
+
+4. In `User support email`, choose your own Gmail address.
+5. Click `Next`.
+6. For audience/user type, choose the external option for personal use if Google asks.
+7. Click `Next`.
+8. Add your email address as the developer contact email.
+9. Click `Next`.
+10. Review the information.
+11. Click `Create`.
+
+If Google shows a `Test users` section after that:
+
+1. Open the `Audience` or `Test users` area.
+2. Click `Add users`.
+3. Add the Gmail address you want to use with Jarona.
+4. Save it.
+
+### Step 4: Create OAuth Credentials
+
+1. Open this page:
+
+[https://console.cloud.google.com/auth/clients](https://console.cloud.google.com/auth/clients)
+
+2. Click `Create client`.
+3. For application type, choose:
+
+```text
+Web application
+```
+
+4. In the name field, type:
+
+```text
+Jarona Local
+```
+
+### Step 5: Add The Exact Redirect URI
+
+If you will connect Google Calendar from the computer running Jarona, use:
+
+```text
+http://127.0.0.1:3000/api/google/callback
+```
+
+If you will finish the Google login flow from your iPhone instead, use your computer's LAN address instead, for example:
+
+```text
+http://192.168.1.25:3000/api/google/callback
+```
+
+Now add it:
+
+1. In the `Authorized redirect URIs` section, click `Add URI`.
+2. Paste one of the exact values above.
+3. Double-check that it matches exactly.
+4. Click `Create`.
+
+### Step 6: Copy Your Google Credentials
+
+After the OAuth client is created:
+
+1. Google will show your `Client ID`
+2. Google will show your `Client secret`
+3. Copy both of them somewhere temporarily
+
+If the popup closes:
+
+1. Go back to [https://console.cloud.google.com/auth/clients](https://console.cloud.google.com/auth/clients)
+2. Click your new `Jarona Local` client
+3. On the client details page, look for the section labeled `Client ID for Web application`
+4. Copy the `Client ID`
+5. In that same client details page, look for the line labeled `Client secret`
+6. If Google hides it, click the reveal icon next to it
+7. Copy the `Client secret`
+
+### Step 7: Create Your Local `.env` File
+
+Use Terminal for this so the steps are exact.
+
+1. Open Terminal.
+2. Go into the Jarona project folder:
+
+```bash
+cd /Users/ahameed/Documents/GitHub/Jarona
+```
+
+3. Copy the example file into a real `.env` file:
+
+```bash
+cp .env.example .env
+```
+
+4. Open `.env` in TextEdit:
+
+```bash
+open -a TextEdit .env
+```
+
+If `open -a TextEdit .env` does not work, use:
+
+```bash
+nano .env
+```
+
+5. Replace the placeholder values with your real Google values.
+
+Example for normal computer-only use:
+
+```text
+GOOGLE_CLIENT_ID=your-real-client-id-here
+GOOGLE_CLIENT_SECRET=your-real-client-secret-here
+GOOGLE_REDIRECT_URI=http://127.0.0.1:3000/api/google/callback
+```
+
+Example for iPhone use on the same Wi-Fi:
+
+```text
+GOOGLE_CLIENT_ID=your-real-client-id-here
+GOOGLE_CLIENT_SECRET=your-real-client-secret-here
+GOOGLE_REDIRECT_URI=http://192.168.1.25:3000/api/google/callback
+```
+
+Use your actual IP address if you choose the iPhone version.
+
+6. Save the file.
+
+If you used `nano`:
+
+1. Press `Control + O`
+2. Press `Enter`
+3. Press `Control + X`
+
+### Step 8: Restart Jarona
+
+If Jarona is already running:
+
+1. Click the Terminal window where Jarona is running.
+2. Press:
+
+```text
+Control + C
+```
+
+3. Start it again with this exact command if you are using Jarona only on your computer:
+
+```bash
+cd /Users/ahameed/Documents/GitHub/Jarona
+npm start
+```
+
+4. Or start it with this exact command if you also want to open it from your iPhone on the same Wi-Fi:
+
+```bash
+cd /Users/ahameed/Documents/GitHub/Jarona
+HOST=0.0.0.0 npm start
+```
+
+5. Wait until Terminal shows that Jarona is running.
+
+### Step 9: Open Jarona In Your Browser
+
+If you are using your computer:
+
+1. Open your browser.
+2. Go to:
+
+```text
+http://127.0.0.1:3000
+```
+
+If you are using your iPhone:
+
+1. Open Safari or Chrome on your iPhone.
+2. Go to:
+
+```text
+http://YOUR-COMPUTER-IP:3000
+```
+
+Example:
+
+```text
+http://192.168.1.25:3000
+```
+
+3. Once the site loads, log into your Jarona profile.
+
+### Step 10: Find The Google Calendar Section
+
+1. After logging in, look on the right side of Jarona.
+2. Find the box titled:
+
+```text
+Google Calendar
+```
+
+3. You should see a button that says:
+
+```text
+Connect Google Calendar
+```
+
+If you instead see `Google Setup Needed`, then:
+
+1. `.env` is missing
+2. the values inside `.env` are wrong
+3. or Jarona was not restarted after editing `.env`
+
+### Step 11: Connect Google Calendar
+
+1. Click `Connect Google Calendar`
+2. Google will open
+3. Sign in with the Google account you want Jarona to use
+4. If Google asks you to choose an account, pick your personal Gmail
+5. Review the requested permissions
+6. Click `Allow`
+
+After Google redirects back to Jarona:
+
+1. Jarona should show that Google Calendar is connected
+2. Jarona will create and use a separate calendar named:
+
+```text
+Jarona
+```
+
+### Step 12: Generate People And Create The Calendar Event
+
+1. In Jarona, press `Generate`
+2. Jarona will choose the people for today
+3. If Google Calendar is connected, Jarona will automatically create or update today's event in the separate `Jarona` calendar
+4. The Google Calendar event is created for:
+
+```text
+1:00 PM to 3:00 PM
+```
+
+5. Press `Open Jarona Calendar`
+6. In Google Calendar, click the event for today
+7. The event details should list the generated people to reach out to
+8. If you turned on the background scheduler above, this same calendar event can also be created automatically later in the day even when Jarona is not open in your browser, as long as your computer is on and awake
+
+### Step 13: If You Need To Re-Sync Today's Event
+
+1. Stay logged into Jarona
+2. Make sure today's people have already been generated
+3. Press:
+
+```text
+Sync Today's Event
+```
+
+That forces Jarona to push today's event into Google Calendar again.
+
+## Troubleshooting Google Calendar Setup
+
+### If `Connect Google Calendar` does nothing useful
+
+Check these:
+
+1. Make sure `.env` exists in `/Users/ahameed/Documents/GitHub/Jarona`
+2. Make sure `GOOGLE_CLIENT_ID` is filled in
+3. Make sure `GOOGLE_CLIENT_SECRET` is filled in
+4. Make sure `GOOGLE_REDIRECT_URI` exactly matches the one in Google Cloud
+5. Restart Jarona after editing `.env`
+
+### If Google says `redirect_uri_mismatch`
+
+That means the redirect URI in Google Cloud and the redirect URI in `.env` do not exactly match.
+
+They must match character for character.
+
+### If You Open Jarona On iPhone
+
+If you complete the Google login on your iPhone:
+
+1. Jarona must be running with:
+
+```bash
+HOST=0.0.0.0 npm start
+```
+
+2. Your `.env` redirect URI must use your computer's LAN IP, not `127.0.0.1`
+3. That same LAN redirect URI must also be entered in Google Cloud
 
 ## Deploying Online For Free With Render
 

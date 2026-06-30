@@ -12,7 +12,7 @@
         <div>
           <p class="eyebrow">Jarona</p>
           <h1>Stay close on purpose.</h1>
-          <p class="subtitle">Pick who to reach out to today without losing the bigger picture.</p>
+          <p class="subtitle">Keep your people list alive, track who answers, and let Jarona handle the daily nudge.</p>
         </div>
 
         <div class="topbar-actions">
@@ -22,17 +22,22 @@
           </div>
 
           <div class="profile-card">
-            <label for="profileSelect">Profiles</label>
+            <div class="profile-status-row">
+              <label for="profileSelect">Profiles</label>
+              <span id="loginStateBadge" class="status-chip">Logged out</span>
+            </div>
+
             <div class="profile-controls">
               <select id="profileSelect"></select>
               <button id="switchProfileButton" class="secondary-button" type="button">Switch</button>
             </div>
+
             <div class="profile-buttons">
               <button id="loginButton" class="secondary-button" type="button">Log In</button>
               <button id="registerButton" class="accent-button" type="button">Create Profile</button>
-              <button id="logoutButton" class="ghost-button hidden" type="button">Log Out</button>
             </div>
-            <p id="activeProfileLabel" class="small-note">No active profile</p>
+
+            <p id="activeProfileLabel" class="small-note">Not logged in</p>
           </div>
         </div>
       </header>
@@ -47,12 +52,18 @@
             <button id="addPersonButton" class="icon-button" type="button" aria-label="Add person">+</button>
           </div>
 
+          <div class="search-row">
+            <label for="peopleSearch">Search people</label>
+            <input id="peopleSearch" type="text" placeholder="Search by first name or username" />
+          </div>
+
           <div class="sort-row">
             <label for="sortField">Sort by</label>
             <select id="sortField">
               <option value="firstName">First Name</option>
               <option value="lastName">Last Name</option>
               <option value="bond">Bond</option>
+              <option value="responseRate">Response Rate</option>
               <option value="location">Location</option>
               <option value="metAt">When We Met</option>
             </select>
@@ -78,7 +89,24 @@
           <div class="result-card">
             <button id="generateButton" class="generate-button" type="button">Generate</button>
             <p id="generationStatus" class="status-text">Log in and press generate when you are ready.</p>
+
+            <div class="calendar-actions">
+              <button id="openCalendarButton" class="secondary-button" type="button" disabled>Open Jarona Calendar</button>
+              <button id="syncGoogleCalendarButton" class="secondary-button" type="button" disabled>Sync Today's Event</button>
+              <button id="downloadCalendarButton" class="secondary-button" type="button" disabled>Download Calendar File</button>
+            </div>
+
             <div id="generationResults" class="generation-results"></div>
+          </div>
+
+          <div class="settings-card">
+            <h3>Google Calendar</h3>
+            <p id="googleCalendarStatus" class="small-note">Google Calendar is not connected yet.</p>
+
+            <div class="settings-actions">
+              <button id="connectGoogleCalendarButton" class="secondary-button" type="button">Connect Google Calendar</button>
+              <button id="disconnectGoogleCalendarButton" class="ghost-button hidden" type="button">Disconnect Google Calendar</button>
+            </div>
           </div>
 
           <div class="settings-card">
@@ -102,7 +130,29 @@
               <p class="small-note">A selected person cannot appear again until the cooldown passes.</p>
             </div>
 
-            <button id="saveSettingsButton" class="secondary-button" type="button">Save Settings</button>
+            <div class="setting-block">
+              <h4 class="micro-heading">Automatic daily run</h4>
+              <p class="small-note">Jarona auto-generates at 12:00 PM local time when the app is open, and it also catches up the next time you open the site after noon. If Google Calendar is connected, the calendar event is created for 1:00 PM to 3:00 PM.</p>
+            </div>
+
+            <div class="settings-actions">
+              <button id="saveSettingsButton" class="secondary-button" type="button">Save Settings</button>
+              <button id="enableNotificationsButton" class="secondary-button" type="button">Enable Notifications</button>
+            </div>
+
+            <p id="settingsSaveMessage" class="settings-message">No saved changes yet.</p>
+          </div>
+
+          <div class="metrics-card">
+            <div class="panel-header compact-header">
+              <div>
+                <p class="eyebrow">Metrics</p>
+                <h3>Relationship signals</h3>
+              </div>
+            </div>
+
+            <div id="metricsGrid" class="metrics-grid"></div>
+            <div id="bondChangesList" class="bond-changes-list"></div>
           </div>
         </section>
       </main>
@@ -149,6 +199,12 @@
           <div id="bondLegend" class="bond-legend"></div>
         </div>
 
+        <div id="responseStatsCard" class="response-stats-card hidden">
+          <h4 class="micro-heading">Response history</h4>
+          <p id="personResponseSummary" class="small-note">Response rate: 100%</p>
+          <div id="reachoutHistoryList" class="reachout-history-list"></div>
+        </div>
+
         <p id="personFormError" class="error-text hidden"></p>
 
         <div class="modal-actions">
@@ -177,11 +233,35 @@
           <input id="authPassword" name="password" type="password" required />
         </label>
 
+        <label class="checkbox-row">
+          <input id="rememberPasswordCheckbox" type="checkbox" />
+          <span>Remember password on this device</span>
+        </label>
+
         <p id="authHelperText" class="small-note">Use your profile credentials to access your data.</p>
         <p id="authError" class="error-text hidden"></p>
 
         <div class="modal-actions">
           <button id="submitAuthButton" class="accent-button" type="submit">Continue</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="responseReviewModal" class="modal">
+      <form id="responseReviewForm" class="modal-card auth-card" method="dialog">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Who Responded?</p>
+            <h3>Catch up on yesterday's outreach</h3>
+          </div>
+          <button id="closeResponseReviewButton" class="ghost-button" type="button">Close</button>
+        </div>
+
+        <div id="responseReviewContent" class="response-review-content"></div>
+        <p id="responseReviewError" class="error-text hidden"></p>
+
+        <div class="modal-actions">
+          <button id="saveResponseReviewButton" class="accent-button" type="submit">Save Responses</button>
         </div>
       </form>
     </dialog>
@@ -200,6 +280,13 @@
           <p class="person-bond"></p>
         </div>
         <dl class="person-meta"></dl>
+      </article>
+    </template>
+
+    <template id="metricCardTemplate">
+      <article class="metric-card">
+        <p class="metric-label"></p>
+        <strong class="metric-value"></strong>
       </article>
     </template>
 
