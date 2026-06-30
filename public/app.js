@@ -9,7 +9,10 @@ const state = {
     dailyCount: 3,
     cooldownDays: 3,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    autoGenerateHour: 12
+    autoGenerateTime: "12:00",
+    calendarStartTime: "13:00",
+    calendarEndTime: "15:00",
+    strikeThreshold: 3
   },
   profiles: [],
   sortField: "firstName",
@@ -21,6 +24,8 @@ const state = {
   lastGeneratedPeopleIds: [],
   lastGeneratedDate: null,
   latestGeneratedPeople: [],
+  generationLog: [],
+  selectedHistoryDate: "",
   pendingResponseReview: [],
   metrics: null,
   googleCalendar: {
@@ -59,6 +64,12 @@ const elements = {
   registerButton: document.getElementById("registerButton"),
   loginStateBadge: document.getElementById("loginStateBadge"),
   activeProfileLabel: document.getElementById("activeProfileLabel"),
+  historyStatus: document.getElementById("historyStatus"),
+  historyPrevButton: document.getElementById("historyPrevButton"),
+  historyDateSelect: document.getElementById("historyDateSelect"),
+  historyNextButton: document.getElementById("historyNextButton"),
+  saveHistoryResponsesButton: document.getElementById("saveHistoryResponsesButton"),
+  historyDateContent: document.getElementById("historyDateContent"),
   addPersonButton: document.getElementById("addPersonButton"),
   peopleSearch: document.getElementById("peopleSearch"),
   peopleList: document.getElementById("peopleList"),
@@ -77,11 +88,17 @@ const elements = {
   dailyCountInput: document.getElementById("dailyCountInput"),
   cooldownRange: document.getElementById("cooldownRange"),
   cooldownInput: document.getElementById("cooldownInput"),
+  autoGenerateTimeInput: document.getElementById("autoGenerateTimeInput"),
+  calendarStartTimeInput: document.getElementById("calendarStartTimeInput"),
+  calendarEndTimeInput: document.getElementById("calendarEndTimeInput"),
+  strikeThresholdRange: document.getElementById("strikeThresholdRange"),
+  strikeThresholdInput: document.getElementById("strikeThresholdInput"),
   saveSettingsButton: document.getElementById("saveSettingsButton"),
   enableNotificationsButton: document.getElementById("enableNotificationsButton"),
   settingsSaveMessage: document.getElementById("settingsSaveMessage"),
   metricsGrid: document.getElementById("metricsGrid"),
   bondChangesList: document.getElementById("bondChangesList"),
+  strikeWatchList: document.getElementById("strikeWatchList"),
   metricCardTemplate: document.getElementById("metricCardTemplate"),
   personModal: document.getElementById("personModal"),
   personModalTitle: document.getElementById("personModalTitle"),
@@ -236,6 +253,10 @@ const setCooldown = syncRangeAndInput(elements.cooldownRange, elements.cooldownI
   elements.settingsSaveMessage.textContent = "Unsaved settings changes.";
 });
 
+const setStrikeThreshold = syncRangeAndInput(elements.strikeThresholdRange, elements.strikeThresholdInput, 1, 10, () => {
+  elements.settingsSaveMessage.textContent = "Unsaved settings changes.";
+});
+
 const setBond = syncRangeAndInput(elements.personBondRange, elements.personBondInput, 1, 10);
 
 function buildBondLegend() {
@@ -270,6 +291,22 @@ function formatDateReadable(value) {
   });
 }
 
+function formatTimeDisplay(value) {
+  if (!value) {
+    return "";
+  }
+
+  const [hoursRaw, minutesRaw] = String(value).split(":");
+  const hours = Number(hoursRaw);
+  const minutes = Number(minutesRaw);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) {
+    return value;
+  }
+  const suffix = hours >= 12 ? "PM" : "AM";
+  const normalizedHours = hours % 12 || 12;
+  return `${normalizedHours}:${String(minutes).padStart(2, "0")} ${suffix}`;
+}
+
 function getTodayInTimezone(timezone) {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: timezone,
@@ -296,6 +333,44 @@ function getTimePartsInTimezone(timezone) {
   };
 }
 
+function buildHistoryEntries() {
+  return (state.generationLog || []).map((entry) => {
+    const people = (entry.personIds || [])
+      .map((personId) => state.people.find((person) => person.id === personId))
+      .filter(Boolean)
+      .map((person) => {
+        const reachout = (person.reachouts || []).find((item) => item.date === entry.date);
+        return {
+          id: person.id,
+          name: formatDisplayName(person),
+          bond: person.bond,
+          responded: reachout?.responded ?? null
+        };
+      });
+
+    return {
+      date: entry.date,
+      trigger: entry.trigger || "manual",
+      people
+    };
+  });
+}
+
+function ensureSelectedHistoryDate() {
+  const entries = buildHistoryEntries();
+  if (entries.length === 0) {
+    state.selectedHistoryDate = "";
+    return entries;
+  }
+
+  const hasSelection = entries.some((entry) => entry.date === state.selectedHistoryDate);
+  if (!hasSelection) {
+    state.selectedHistoryDate = entries[0].date;
+  }
+
+  return entries;
+}
+
 function sortedPeople() {
   const query = state.searchQuery.trim().toLowerCase();
   const direction = state.sortDirection === "asc" ? 1 : -1;
@@ -313,7 +388,9 @@ function sortedPeople() {
       const b = right[state.sortField] ?? "";
 
       if (["bond", "responseRate"].includes(state.sortField)) {
-        return (Number(a) - Number(b)) * direction;
+        const leftNumber = a === null || a === "" ? -1 : Number(a);
+        const rightNumber = b === null || b === "" ? -1 : Number(b);
+        return (leftNumber - rightNumber) * direction;
       }
 
       return String(a).localeCompare(String(b), undefined, { sensitivity: "base" }) * direction;
@@ -351,6 +428,139 @@ function renderAuthState() {
     ? `You are currently using ${state.profile.username}.`
     : "Not logged in";
   elements.registerButton.classList.toggle("hidden", loggedIn);
+
+  if (!loggedIn) {
+    elements.connectGoogleCalendarButton.textContent = "Log In To Connect Google Calendar";
+  }
+}
+
+function renderHistoryStrip() {
+  const entries = ensureSelectedHistoryDate();
+  elements.historyDateSelect.innerHTML = "";
+
+  if (!state.profile) {
+    elements.historyStatus.textContent = "Log in to browse past generated dates.";
+    elements.historyPrevButton.disabled = true;
+    elements.historyNextButton.disabled = true;
+    elements.saveHistoryResponsesButton.disabled = true;
+    elements.historyDateSelect.disabled = true;
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No dates available";
+    elements.historyDateSelect.appendChild(option);
+    elements.historyDateContent.innerHTML = "";
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.textContent = "Your past generated dates will appear here after you log in and start using Jarona.";
+    elements.historyDateContent.appendChild(empty);
+    return;
+  }
+
+  if (entries.length === 0) {
+    elements.historyStatus.textContent = "No generated dates yet. Use Generate and they will show up here.";
+    elements.historyPrevButton.disabled = true;
+    elements.historyNextButton.disabled = true;
+    elements.saveHistoryResponsesButton.disabled = true;
+    elements.historyDateSelect.disabled = true;
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No dates available";
+    elements.historyDateSelect.appendChild(option);
+    elements.historyDateContent.innerHTML = "";
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.textContent = "No past reach-out dates have been generated yet.";
+    elements.historyDateContent.appendChild(empty);
+    return;
+  }
+
+  entries.forEach((entry) => {
+    const option = document.createElement("option");
+    option.value = entry.date;
+    option.textContent = `${formatDateReadable(entry.date)} • ${entry.people.length} selected`;
+    if (entry.date === state.selectedHistoryDate) {
+      option.selected = true;
+    }
+    elements.historyDateSelect.appendChild(option);
+  });
+
+  const selectedIndex = entries.findIndex((entry) => entry.date === state.selectedHistoryDate);
+  const selectedEntry = entries[selectedIndex] || entries[0];
+  const generatedCount = entries.length;
+
+  elements.historyStatus.textContent = `Viewing ${formatDateReadable(selectedEntry.date)}. ${generatedCount} saved generated date${generatedCount === 1 ? "" : "s"}.`;
+  elements.historyPrevButton.disabled = selectedIndex >= entries.length - 1;
+  elements.historyNextButton.disabled = selectedIndex <= 0;
+  elements.saveHistoryResponsesButton.disabled = selectedEntry.people.length === 0;
+  elements.historyDateSelect.disabled = false;
+
+  elements.historyDateContent.innerHTML = "";
+  const card = document.createElement("section");
+  card.className = "history-date-card";
+
+  const summary = document.createElement("p");
+  summary.className = "history-date-summary";
+  summary.textContent = `${formatDateReadable(selectedEntry.date)} • ${selectedEntry.people.length} selected • ${selectedEntry.trigger}`;
+  card.appendChild(summary);
+
+  const peopleList = document.createElement("div");
+  peopleList.className = "history-people-list";
+
+  selectedEntry.people.forEach((person) => {
+    const row = document.createElement("div");
+    row.className = "history-person-row";
+
+    const main = document.createElement("div");
+    main.className = "history-person-main";
+
+    const copy = document.createElement("div");
+    copy.className = "history-person-copy";
+
+    const name = document.createElement("h4");
+    name.className = "history-person-name";
+    name.textContent = person.name;
+
+    const note = document.createElement("p");
+    note.className = "history-person-note";
+    note.textContent = `Bond ${person.bond}/10 • ${person.responded === null ? "Pending review" : person.responded ? "Responded" : "No response yet"}`;
+
+    copy.append(name, note);
+    main.appendChild(copy);
+
+    const actions = document.createElement("div");
+    actions.className = "history-date-actions";
+
+    const checkboxLabel = document.createElement("label");
+    checkboxLabel.className = "checkbox-row history-checkbox-label";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = person.responded === true;
+    checkbox.dataset.personId = person.id;
+    checkbox.dataset.date = selectedEntry.date;
+
+    const checkboxText = document.createElement("span");
+    checkboxText.textContent = "They responded";
+    checkboxLabel.append(checkbox, checkboxText);
+
+    const editButton = document.createElement("button");
+    editButton.className = "ghost-button";
+    editButton.type = "button";
+    editButton.textContent = "Edit Person";
+    editButton.addEventListener("click", () => {
+      const match = state.people.find((entry) => entry.id === person.id);
+      if (match) {
+        openPersonModal(match);
+      }
+    });
+
+    actions.append(checkboxLabel, editButton);
+    row.append(main, actions);
+    peopleList.appendChild(row);
+  });
+
+  card.appendChild(peopleList);
+  elements.historyDateContent.appendChild(card);
 }
 
 function renderPeople() {
@@ -385,11 +595,15 @@ function renderPeople() {
     node.querySelector(".person-bond").textContent = bondSummary.join(" • ");
 
     const meta = node.querySelector(".person-meta");
-    const metaItems = [
-      ["Username / First", person.firstName],
-      ["Location", person.location || "Not added"],
-      ["Last Name", person.lastName || "Not added"]
-    ];
+    const metaItems = [["Username / First", person.firstName]];
+
+    if (person.location) {
+      metaItems.push(["Location", person.location]);
+    }
+
+    if (person.lastName) {
+      metaItems.push(["Last Name", person.lastName]);
+    }
 
     if (person.metAt) {
       metaItems.push(["When We Met", formatMetAt(person.metAt)]);
@@ -447,6 +661,7 @@ function renderGenerationResults(people) {
 function renderMetrics() {
   elements.metricsGrid.innerHTML = "";
   elements.bondChangesList.innerHTML = "";
+  elements.strikeWatchList.innerHTML = "";
 
   if (!state.metrics) {
     return;
@@ -455,7 +670,7 @@ function renderMetrics() {
   const metricItems = [
     ["People", state.metrics.totalPeople],
     ["Average Bond", state.metrics.averageBond],
-    ["Overall Response Rate", `${state.metrics.overallResponseRate}%`],
+    ["Overall Response Rate", state.metrics.overallResponseRate === null ? "No response data yet" : `${state.metrics.overallResponseRate}%`],
     ["Total Reach-outs", state.metrics.totalReachouts],
     ["Pending Reviews", state.metrics.pendingResponses],
     ["Strongest Bond", state.metrics.strongestPerson ? `${state.metrics.strongestPerson.name} (${state.metrics.strongestPerson.bond})` : "None yet"],
@@ -482,6 +697,29 @@ function renderMetrics() {
       item.textContent = `${entry.name}: started at ${entry.startBond}, now ${entry.currentBond} (${changeWord}).`;
       elements.bondChangesList.appendChild(item);
     });
+  } else {
+    const heading = document.createElement("h4");
+    heading.className = "micro-heading";
+    heading.textContent = "Bond changes over time";
+    elements.bondChangesList.appendChild(heading);
+
+    const empty = document.createElement("div");
+    empty.className = "bond-change-item";
+    empty.textContent = "No relevant bond changes yet.";
+    elements.bondChangesList.appendChild(empty);
+  }
+  if (state.metrics.strikeWatch?.length > 0) {
+    const heading = document.createElement("h4");
+    heading.className = "micro-heading";
+    heading.textContent = "Strike watch";
+    elements.strikeWatchList.appendChild(heading);
+
+    state.metrics.strikeWatch.forEach((entry) => {
+      const item = document.createElement("div");
+      item.className = "bond-change-item";
+      item.textContent = `${entry.name} has ${entry.consecutiveMisses} missed reach-out${entry.consecutiveMisses === 1 ? "" : "s"} in a row. Consider asking clearly whether they want to keep being contacted or whether it is better to remove them from Jarona.`;
+      elements.strikeWatchList.appendChild(item);
+    });
   }
 }
 
@@ -494,8 +732,8 @@ function buildCalendarArtifacts(people, date) {
   const description = people
     .map((person) => `Reach out to ${formatDisplayName(person)}.`)
     .join("\\n");
-  const start = `${date.replace(/-/g, "")}T130000`;
-  const end = `${date.replace(/-/g, "")}T150000`;
+  const start = `${date.replace(/-/g, "")}T${state.settings.calendarStartTime.replace(":", "")}00`;
+  const end = `${date.replace(/-/g, "")}T${state.settings.calendarEndTime.replace(":", "")}00`;
   const eventEditUrl = `https://calendar.google.com/calendar/u/0/r/eventedit?text=${encodeURIComponent(title)}&details=${encodeURIComponent(description)}&dates=${start}/${end}`;
   const chooserUrl = `https://accounts.google.com/AccountChooser?continue=${encodeURIComponent(eventEditUrl)}&service=cl`;
   const ics = [
@@ -539,7 +777,8 @@ function renderGoogleCalendarPanel() {
 
   if (!state.profile) {
     elements.googleCalendarStatus.textContent = "Log in to connect Google Calendar.";
-    elements.connectGoogleCalendarButton.disabled = true;
+    elements.connectGoogleCalendarButton.textContent = "Log In To Connect Google Calendar";
+    elements.connectGoogleCalendarButton.disabled = false;
     elements.disconnectGoogleCalendarButton.classList.add("hidden");
     return;
   }
@@ -655,9 +894,26 @@ function openResponseReviewModalIfNeeded() {
   }
 }
 
+function shiftHistoryDate(direction) {
+  const entries = ensureSelectedHistoryDate();
+  const currentIndex = entries.findIndex((entry) => entry.date === state.selectedHistoryDate);
+  if (currentIndex === -1) {
+    return;
+  }
+
+  const nextIndex = currentIndex + direction;
+  if (nextIndex < 0 || nextIndex >= entries.length) {
+    return;
+  }
+
+  state.selectedHistoryDate = entries[nextIndex].date;
+  renderHistoryStrip();
+}
+
 function applyPeopleState(people) {
   state.people = people || [];
   renderPeople();
+  renderHistoryStrip();
 }
 
 function applyProfilePayload(payload) {
@@ -666,16 +922,22 @@ function applyProfilePayload(payload) {
   state.settings = payload.settings || state.settings;
   state.lastGeneratedDate = payload.lastGeneratedDate || null;
   state.lastGeneratedPeopleIds = payload.lastGeneratedPeopleIds || [];
+  state.generationLog = payload.generationLog || [];
   state.pendingResponseReview = payload.pendingResponseReview || [];
   state.metrics = payload.metrics || null;
   state.googleCalendar = payload.googleCalendar || state.googleCalendar;
+  renderAuthState();
+  renderGoogleCalendarPanel();
   applyPeopleState(payload.people || []);
   renderProfiles();
-  renderAuthState();
   renderMetrics();
 
   setDailyCount(state.settings.dailyCount);
   setCooldown(state.settings.cooldownDays);
+  setStrikeThreshold(state.settings.strikeThreshold);
+  elements.autoGenerateTimeInput.value = state.settings.autoGenerateTime;
+  elements.calendarStartTimeInput.value = state.settings.calendarStartTime;
+  elements.calendarEndTimeInput.value = state.settings.calendarEndTime;
 
   state.latestGeneratedPeople = state.lastGeneratedPeopleIds
     .map((personId) => state.people.find((person) => person.id === personId))
@@ -684,6 +946,7 @@ function applyProfilePayload(payload) {
   state.calendarEvent = buildCalendarArtifacts(state.latestGeneratedPeople, state.lastGeneratedDate);
   renderCalendarActions();
   renderGoogleCalendarPanel();
+  renderHistoryStrip();
 
   if (state.latestGeneratedPeople.length > 0) {
     renderGenerationResults(state.latestGeneratedPeople);
@@ -695,7 +958,7 @@ function applyProfilePayload(payload) {
     ? `Last generated on ${state.lastGeneratedDate}.`
     : "Press Generate to choose people for today.";
 
-  elements.settingsSaveMessage.textContent = `Current settings: ${state.settings.dailyCount} people each day, ${state.settings.cooldownDays}-day cooldown, auto-generate at 12:00 PM.`;
+  elements.settingsSaveMessage.textContent = `Current settings: ${state.settings.dailyCount} people each day, ${state.settings.cooldownDays}-day cooldown, auto-generate at ${formatTimeDisplay(state.settings.autoGenerateTime)}, calendar event ${formatTimeDisplay(state.settings.calendarStartTime)} to ${formatTimeDisplay(state.settings.calendarEndTime)}, strike threshold ${state.settings.strikeThreshold}.`;
   updateNotificationButton();
   startAutomationLoop();
   openResponseReviewModalIfNeeded();
@@ -707,6 +970,8 @@ function clearProfileState() {
   state.lastGeneratedPeopleIds = [];
   state.lastGeneratedDate = null;
   state.latestGeneratedPeople = [];
+  state.generationLog = [];
+  state.selectedHistoryDate = "";
   state.pendingResponseReview = [];
   state.metrics = null;
   state.googleCalendar = {
@@ -721,6 +986,15 @@ function clearProfileState() {
     redirectUri: ""
   };
   state.calendarEvent = null;
+  state.settings = {
+    dailyCount: 3,
+    cooldownDays: 3,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    autoGenerateTime: "12:00",
+    calendarStartTime: "13:00",
+    calendarEndTime: "15:00",
+    strikeThreshold: 3
+  };
   clearAutomationLoop();
   renderAuthState();
   renderPeople();
@@ -728,6 +1002,7 @@ function clearProfileState() {
   renderGenerationResults([]);
   renderCalendarActions();
   renderGoogleCalendarPanel();
+  renderHistoryStrip();
   elements.generationStatus.textContent = "Log in and press generate when you are ready.";
   elements.settingsSaveMessage.textContent = "No saved changes yet.";
 }
@@ -797,7 +1072,11 @@ function openPersonModal(person = null) {
 
   if (person && person.reachouts.length > 0) {
     elements.responseStatsCard.classList.remove("hidden");
-    elements.personResponseSummary.textContent = `Response rate: ${person.responseRate}% • Reached out ${person.totalReachouts} times`;
+    const responseText = person.responseRate === null ? "Response rate: No response data yet" : `Response rate: ${person.responseRate}%`;
+    const strikeText = person.consecutiveMisses >= state.settings.strikeThreshold
+      ? ` • Strike alert: ${person.consecutiveMisses} missed reach-outs in a row`
+      : "";
+    elements.personResponseSummary.textContent = `${responseText} • Reached out ${person.totalReachouts} times${strikeText}`;
     renderReachoutHistory(person);
   } else {
     elements.responseStatsCard.classList.add("hidden");
@@ -823,7 +1102,10 @@ async function saveSettings() {
       dailyCount: Number(elements.dailyCountInput.value),
       cooldownDays: Number(elements.cooldownInput.value),
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      autoGenerateHour: 12
+      autoGenerateTime: elements.autoGenerateTimeInput.value,
+      calendarStartTime: elements.calendarStartTimeInput.value,
+      calendarEndTime: elements.calendarEndTimeInput.value,
+      strikeThreshold: Number(elements.strikeThresholdInput.value)
     };
 
     const data = await api("/api/settings", {
@@ -834,7 +1116,7 @@ async function saveSettings() {
     state.settings = data.settings;
     state.metrics = data.metrics;
     renderMetrics();
-    elements.settingsSaveMessage.textContent = `Saved settings: ${data.settings.dailyCount} people each day, ${data.settings.cooldownDays}-day cooldown, auto-generate at 12:00 PM.`;
+    elements.settingsSaveMessage.textContent = `Saved settings: ${data.settings.dailyCount} people each day, ${data.settings.cooldownDays}-day cooldown, auto-generate at ${formatTimeDisplay(data.settings.autoGenerateTime)}, calendar event ${formatTimeDisplay(data.settings.calendarStartTime)} to ${formatTimeDisplay(data.settings.calendarEndTime)}, strike threshold ${data.settings.strikeThreshold}.`;
     startAutomationLoop();
   } catch (error) {
     elements.settingsSaveMessage.textContent = error.message;
@@ -892,6 +1174,7 @@ async function submitPersonForm(event) {
 
     renderPeople();
     renderMetrics();
+    renderHistoryStrip();
     closePersonModal();
   } catch (error) {
     showError(elements.personFormError, error.message);
@@ -982,6 +1265,7 @@ async function generateToday(options = {}) {
     state.lastGeneratedDate = data.generatedDate;
     state.lastGeneratedPeopleIds = data.selectedPeople.map((person) => person.id);
     state.latestGeneratedPeople = data.selectedPeople;
+    state.generationLog = data.generationLog || state.generationLog;
     state.people = data.people || state.people;
     state.pendingResponseReview = data.pendingResponseReview || state.pendingResponseReview;
     state.metrics = data.metrics || state.metrics;
@@ -993,6 +1277,7 @@ async function generateToday(options = {}) {
     renderGoogleCalendarPanel();
     renderMetrics();
     renderPeople();
+    renderHistoryStrip();
 
     const triggerLabel = data.trigger === "automatic" ? "Automatically generated" : "Generated";
     const syncSuffix = data.calendarSyncMessage ? ` ${data.calendarSyncMessage}` : "";
@@ -1003,6 +1288,7 @@ async function generateToday(options = {}) {
       state.lastGeneratedDate = error.payload.generatedDate;
       state.lastGeneratedPeopleIds = error.payload.selectedPeople.map((person) => person.id);
       state.latestGeneratedPeople = error.payload.selectedPeople;
+      state.generationLog = error.payload.generationLog || state.generationLog;
       state.people = error.payload.people || state.people;
       state.pendingResponseReview = error.payload.pendingResponseReview || state.pendingResponseReview;
       state.metrics = error.payload.metrics || state.metrics;
@@ -1013,6 +1299,7 @@ async function generateToday(options = {}) {
       renderGoogleCalendarPanel();
       renderMetrics();
       renderPeople();
+      renderHistoryStrip();
       elements.generationStatus.textContent = error.message;
       return;
     }
@@ -1056,6 +1343,7 @@ async function requestNotifications() {
 async function connectGoogleCalendar() {
   if (!state.profile) {
     elements.googleCalendarStatus.textContent = "Log in before connecting Google Calendar.";
+    openAuthModal("login", elements.profileSelect.value);
     return;
   }
 
@@ -1122,8 +1410,10 @@ function startAutomationLoop() {
 
   const today = getTodayInTimezone(state.settings.timezone);
   const now = getTimePartsInTimezone(state.settings.timezone);
-  const hasReachedAutoTime = now.hour > state.settings.autoGenerateHour
-    || (now.hour === state.settings.autoGenerateHour && now.minute >= 0);
+  const [hoursRaw, minutesRaw] = state.settings.autoGenerateTime.split(":");
+  const targetMinutes = Number(hoursRaw || 0) * 60 + Number(minutesRaw || 0);
+  const currentMinutes = now.hour * 60 + now.minute;
+  const hasReachedAutoTime = currentMinutes >= targetMinutes;
 
   if (hasReachedAutoTime && state.lastGeneratedDate !== today) {
     generateToday({ automatic: true, silent: true });
@@ -1153,6 +1443,7 @@ async function submitResponseReview(event) {
     state.metrics = data.metrics;
     renderPeople();
     renderMetrics();
+    renderHistoryStrip();
     renderPendingResponseReview();
 
     if (state.pendingResponseReview.length === 0) {
@@ -1160,6 +1451,41 @@ async function submitResponseReview(event) {
     }
   } catch (error) {
     showError(elements.responseReviewError, error.message);
+  }
+}
+
+async function saveHistoryResponses() {
+  if (!state.profile || !state.selectedHistoryDate) {
+    elements.historyStatus.textContent = "Log in and select a saved date first.";
+    return;
+  }
+
+  const updates = [...elements.historyDateContent.querySelectorAll("input[type='checkbox'][data-person-id]")].map((checkbox) => ({
+    personId: checkbox.dataset.personId,
+    date: checkbox.dataset.date,
+    responded: checkbox.checked
+  }));
+
+  if (updates.length === 0) {
+    elements.historyStatus.textContent = "No selected people were found for that date.";
+    return;
+  }
+
+  try {
+    const data = await api("/api/reachouts", {
+      method: "PUT",
+      body: JSON.stringify({ updates })
+    });
+
+    state.people = data.people || state.people;
+    state.pendingResponseReview = data.pendingResponseReview || state.pendingResponseReview;
+    state.metrics = data.metrics || state.metrics;
+    renderPeople();
+    renderMetrics();
+    renderHistoryStrip();
+    elements.historyStatus.textContent = `Saved responses for ${formatDateReadable(state.selectedHistoryDate)}.`;
+  } catch (error) {
+    elements.historyStatus.textContent = error.message;
   }
 }
 
@@ -1179,6 +1505,16 @@ function attachEvents() {
     renderPeople();
   });
 
+  elements.autoGenerateTimeInput.addEventListener("change", () => {
+    elements.settingsSaveMessage.textContent = "Unsaved settings changes.";
+  });
+  elements.calendarStartTimeInput.addEventListener("change", () => {
+    elements.settingsSaveMessage.textContent = "Unsaved settings changes.";
+  });
+  elements.calendarEndTimeInput.addEventListener("change", () => {
+    elements.settingsSaveMessage.textContent = "Unsaved settings changes.";
+  });
+
   elements.addPersonButton.addEventListener("click", () => openPersonModal());
   elements.closePersonModalButton.addEventListener("click", closePersonModal);
   elements.personForm.addEventListener("submit", submitPersonForm);
@@ -1195,6 +1531,14 @@ function attachEvents() {
   elements.switchProfileButton.addEventListener("click", () => openAuthModal("login", elements.profileSelect.value));
   elements.closeAuthModalButton.addEventListener("click", closeAuthModal);
   elements.authForm.addEventListener("submit", submitAuthForm);
+
+  elements.historyDateSelect.addEventListener("change", () => {
+    state.selectedHistoryDate = elements.historyDateSelect.value;
+    renderHistoryStrip();
+  });
+  elements.historyPrevButton.addEventListener("click", () => shiftHistoryDate(1));
+  elements.historyNextButton.addEventListener("click", () => shiftHistoryDate(-1));
+  elements.saveHistoryResponsesButton.addEventListener("click", saveHistoryResponses);
 
   elements.saveSettingsButton.addEventListener("click", saveSettings);
   elements.enableNotificationsButton.addEventListener("click", requestNotifications);
@@ -1220,6 +1564,7 @@ async function init() {
   buildBondLegend();
   renderAuthState();
   renderPeople();
+  renderHistoryStrip();
   renderGenerationResults([]);
   renderCalendarActions();
   renderGoogleCalendarPanel();

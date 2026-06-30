@@ -71,7 +71,8 @@ option {
 .topbar h1,
 .panel h2,
 .panel h3,
-.modal-card h3 {
+.modal-card h3,
+.history-strip h2 {
   margin: 0;
   color: var(--text);
   font-family: var(--font-display);
@@ -128,7 +129,8 @@ option {
 .date-card,
 .profile-card,
 .panel,
-.modal-card {
+.modal-card,
+.history-strip {
   background: var(--panel);
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
@@ -268,6 +270,100 @@ input[type="range"] {
   padding: 16px 18px;
 }
 
+.history-strip {
+  border-radius: 30px;
+  padding: 22px;
+  margin-bottom: 24px;
+}
+
+.history-strip-header,
+.history-controls,
+.history-person-row,
+.history-person-main,
+.history-date-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.history-strip-header {
+  justify-content: space-between;
+  align-items: end;
+  margin-bottom: 16px;
+}
+
+.history-controls {
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.history-controls select {
+  flex: 1 1 240px;
+}
+
+.history-date-content {
+  display: grid;
+  gap: 14px;
+}
+
+.history-date-card,
+.history-person-row {
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+}
+
+.history-date-card {
+  padding: 16px;
+}
+
+.history-date-summary {
+  margin: 0 0 14px;
+  color: var(--text);
+}
+
+.history-people-list {
+  display: grid;
+  gap: 12px;
+}
+
+.history-person-row {
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px;
+}
+
+.history-person-main {
+  align-items: center;
+  flex: 1 1 auto;
+}
+
+.history-person-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.history-person-name,
+.history-person-note {
+  margin: 0;
+  color: var(--text);
+}
+
+.history-person-name {
+  font-size: 1rem;
+}
+
+.history-date-actions {
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: end;
+}
+
+.history-checkbox-label {
+  min-width: 160px;
+  margin: 0;
+}
+
 .accent-button:hover,
 .secondary-button:hover,
 .ghost-button:hover,
@@ -333,7 +429,8 @@ input[type="range"] {
 .metrics-grid,
 .bond-changes-list,
 .response-review-content,
-.reachout-history-list {
+.reachout-history-list,
+.history-people-list {
   display: grid;
   gap: 14px;
 }
@@ -634,6 +731,11 @@ input[type="range"] {
   }
 
   .person-card-main,
+  .history-strip-header,
+  .history-controls,
+  .history-person-row,
+  .history-person-main,
+  .history-date-actions,
   .profile-controls,
   .profile-buttons,
   .setting-header,

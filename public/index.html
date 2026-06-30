@@ -42,6 +42,25 @@
         </div>
       </header>
 
+      <section class="history-strip">
+        <div class="history-strip-header">
+          <div>
+            <p class="eyebrow">Past Reach-Outs</p>
+            <h2>Check any earlier date</h2>
+          </div>
+          <p id="historyStatus" class="small-note">Log in to browse past generated dates.</p>
+        </div>
+
+        <div class="history-controls">
+          <button id="historyPrevButton" class="ghost-button" type="button">Previous Date</button>
+          <select id="historyDateSelect"></select>
+          <button id="historyNextButton" class="ghost-button" type="button">Next Date</button>
+          <button id="saveHistoryResponsesButton" class="secondary-button" type="button">Save Date Responses</button>
+        </div>
+
+        <div id="historyDateContent" class="history-date-content"></div>
+      </section>
+
       <main class="layout">
         <section class="panel people-panel">
           <div class="panel-header">
@@ -131,8 +150,34 @@
             </div>
 
             <div class="setting-block">
-              <h4 class="micro-heading">Automatic daily run</h4>
-              <p class="small-note">Jarona auto-generates at 12:00 PM local time when the app is open, and it also catches up the next time you open the site after noon. If Google Calendar is connected, the calendar event is created for 1:00 PM to 3:00 PM.</p>
+              <div class="setting-header">
+                <label for="autoGenerateTimeInput">Automatic daily run time</label>
+                <input id="autoGenerateTimeInput" type="time" />
+              </div>
+              <p class="small-note">Jarona auto-generates at this time in your local timezone and catches up the next time you open the site after that time.</p>
+            </div>
+
+            <div class="setting-block">
+              <div class="setting-header">
+                <label for="calendarStartTimeInput">Google Calendar event start</label>
+                <input id="calendarStartTimeInput" type="time" />
+              </div>
+            </div>
+
+            <div class="setting-block">
+              <div class="setting-header">
+                <label for="calendarEndTimeInput">Google Calendar event end</label>
+                <input id="calendarEndTimeInput" type="time" />
+              </div>
+            </div>
+
+            <div class="setting-block">
+              <div class="setting-header">
+                <label for="strikeThresholdRange">Strike threshold</label>
+                <input id="strikeThresholdInput" type="number" min="1" max="10" inputmode="numeric" />
+              </div>
+              <input id="strikeThresholdRange" type="range" min="1" max="10" step="1" />
+              <p class="small-note">If someone misses this many reach-outs in a row, Jarona will flag them for a serious opt-out check-in.</p>
             </div>
 
             <div class="settings-actions">
@@ -153,6 +198,7 @@
 
             <div id="metricsGrid" class="metrics-grid"></div>
             <div id="bondChangesList" class="bond-changes-list"></div>
+            <div id="strikeWatchList" class="bond-changes-list"></div>
           </div>
         </section>
       </main>
@@ -201,7 +247,7 @@
 
         <div id="responseStatsCard" class="response-stats-card hidden">
           <h4 class="micro-heading">Response history</h4>
-          <p id="personResponseSummary" class="small-note">Response rate: 100%</p>
+          <p id="personResponseSummary" class="small-note">Response data appears after you log reach-outs.</p>
           <div id="reachoutHistoryList" class="reachout-history-list"></div>
         </div>
 

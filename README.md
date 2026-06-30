@@ -92,6 +92,33 @@ http://127.0.0.1:3000
 
 6. The Jarona website should load.
 
+## How To Open It On A Windows PC
+
+1. Install Node.js from [https://nodejs.org](https://nodejs.org).
+2. Open `Command Prompt`.
+3. Go into the Jarona project folder:
+
+```bat
+cd C:\Users\YOUR-WINDOWS-USERNAME\Documents\GitHub\Jarona
+```
+
+4. Start Jarona:
+
+```bat
+npm start
+```
+
+5. Open your browser on that Windows PC.
+6. Go to:
+
+```text
+http://127.0.0.1:3000
+```
+
+If you prefer one click on Windows, double-click:
+
+- [run-jarona-windows.bat](/Users/ahameed/Documents/GitHub/Jarona/launchers/run-jarona-windows.bat)
+
 ## How To Open It On Your iPhone
 
 These steps let you run the website on your computer and open it from your iPhone.
@@ -148,6 +175,40 @@ http://192.168.1.25:3000
 
 3. Press Go.
 4. The Jarona website should load on your iPhone.
+
+### If Your Main Computer Is Windows
+
+1. On the Windows PC, start Jarona with:
+
+```bat
+cd C:\Users\YOUR-WINDOWS-USERNAME\Documents\GitHub\Jarona
+launchers\run-jarona-windows-iphone.bat
+```
+
+Or double-click:
+
+- [run-jarona-windows-iphone.bat](/Users/ahameed/Documents/GitHub/Jarona/launchers/run-jarona-windows-iphone.bat)
+
+2. On the Windows PC, open `Command Prompt`.
+3. Type:
+
+```bat
+ipconfig
+```
+
+4. Look for `IPv4 Address` under your active Wi-Fi adapter.
+5. It will usually look like:
+
+```text
+192.168.1.25
+```
+
+6. On your iPhone, open Safari or Chrome.
+7. Go to:
+
+```text
+http://192.168.1.25:3000
+```
 
 ### If It Does Not Open On iPhone
 
@@ -260,6 +321,22 @@ What these mean:
 - That includes profiles, people, settings, and daily generation history
 - This file is ignored by git by default
 - If the server is running on one computer, any device that opens that same server can access the same saved data after logging in
+
+## Sharing Profiles Across Devices
+
+Jarona profiles are already shared across devices if all of those devices are opening the same running Jarona server.
+
+Examples:
+
+- If Jarona is running on your Mac, your iPhone can use the same profiles by opening your Mac's Jarona address on the same Wi-Fi
+- If Jarona is running on your Windows PC, your iPhone can use the same profiles by opening your Windows PC's Jarona address on the same Wi-Fi
+- If Jarona is running on one computer, a second computer on the same network can also open it in a browser and use the same profiles after logging in
+
+Important detail:
+
+- If you start separate copies of Jarona on different machines, they do not automatically sync with each other
+- The shared data lives in that machine's `data/store.json`
+- If you want to move your profiles from one computer to another, copy `data/store.json` from the old machine into the same Jarona folder on the new machine before starting Jarona there
 
 ## Important Notes
 
@@ -388,9 +465,9 @@ install-jarona-windows-auto-generation.bat
 
 - Jarona checks every hour
 - It only generates if the profile has reached its allowed time
-- Right now the website setting is `12:00 PM` by default
-- If the machine misses exactly `12:00 PM`, Jarona will catch up on the next hourly check after that
-- The Google Calendar event is still created for `1:00 PM to 3:00 PM`
+- The website starts with a default auto-generate time of `12:00 PM`
+- If the machine misses the exact minute, Jarona will catch up on the next hourly check after that
+- The Google Calendar event uses whatever start and end times you save in Jarona's Generator settings
 
 ### How To Verify It Worked
 
@@ -701,11 +778,7 @@ Jarona
 1. In Jarona, press `Generate`
 2. Jarona will choose the people for today
 3. If Google Calendar is connected, Jarona will automatically create or update today's event in the separate `Jarona` calendar
-4. The Google Calendar event is created for:
-
-```text
-1:00 PM to 3:00 PM
-```
+4. The Google Calendar event is created for the start and end times currently saved in Jarona's `Generator settings`.
 
 5. Press `Open Jarona Calendar`
 6. In Google Calendar, click the event for today

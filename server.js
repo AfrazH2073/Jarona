@@ -22,7 +22,10 @@ const DEFAULT_SETTINGS = {
   dailyCount: 3,
   cooldownDays: 3,
   timezone: "America/Los_Angeles",
-  autoGenerateHour: 12
+  autoGenerateTime: "12:00",
+  calendarStartTime: "13:00",
+  calendarEndTime: "15:00",
+  strikeThreshold: 3
 };
 const DEFAULT_GOOGLE_INTEGRATION = {
   connected: false,
@@ -146,10 +149,16 @@ function normalizeGoogleIntegration(profile) {
 
 function normalizeProfile(profile) {
   const normalized = clone(profile);
-  normalized.settings = {
+  const profileSettings = profile.settings || {};
+  normalized.settings = validateSettings({
     ...DEFAULT_SETTINGS,
-    ...(profile.settings || {})
-  };
+    ...profileSettings,
+    autoGenerateTime: profileSettings.autoGenerateTime || (
+      Number.isInteger(profileSettings.autoGenerateHour)
+        ? `${String(profileSettings.autoGenerateHour).padStart(2, "0")}:00`
+        : DEFAULT_SETTINGS.autoGenerateTime
+    )
+  }, DEFAULT_SETTINGS);
   normalized.people = Array.isArray(profile.people) ? profile.people.map(normalizePerson) : [];
   normalized.history = Array.isArray(profile.history) ? profile.history : [];
   normalized.generationLog = Array.isArray(profile.generationLog) ? profile.generationLog : [];
@@ -383,7 +392,10 @@ function validateSettings(input, existingSettings = DEFAULT_SETTINGS) {
   const dailyCount = Number(input.dailyCount ?? existingSettings.dailyCount);
   const cooldownDays = Number(input.cooldownDays ?? existingSettings.cooldownDays);
   const timezone = cleanText(input.timezone || existingSettings.timezone || DEFAULT_SETTINGS.timezone);
-  const autoGenerateHour = Number(input.autoGenerateHour ?? existingSettings.autoGenerateHour ?? 12);
+  const autoGenerateTime = cleanText(input.autoGenerateTime || existingSettings.autoGenerateTime || DEFAULT_SETTINGS.autoGenerateTime);
+  const calendarStartTime = cleanText(input.calendarStartTime || existingSettings.calendarStartTime || DEFAULT_SETTINGS.calendarStartTime);
+  const calendarEndTime = cleanText(input.calendarEndTime || existingSettings.calendarEndTime || DEFAULT_SETTINGS.calendarEndTime);
+  const strikeThreshold = Number(input.strikeThreshold ?? existingSettings.strikeThreshold ?? DEFAULT_SETTINGS.strikeThreshold);
 
   if (!Number.isInteger(dailyCount) || dailyCount < 1 || dailyCount > 10) {
     throw new Error("Daily selection count must be an integer from 1 to 10.");
@@ -393,22 +405,48 @@ function validateSettings(input, existingSettings = DEFAULT_SETTINGS) {
     throw new Error("Cooldown must be an integer from 0 to 30 days.");
   }
 
-  if (!Number.isInteger(autoGenerateHour) || autoGenerateHour < 0 || autoGenerateHour > 23) {
-    throw new Error("Auto-generate hour must be between 0 and 23.");
-  }
-
   try {
     Intl.DateTimeFormat(undefined, { timeZone: timezone });
   } catch (error) {
     throw new Error("Timezone is invalid.");
   }
 
+  const autoGenerateMinutes = parseTimeString(autoGenerateTime, "Auto-generate time");
+  const calendarStartMinutes = parseTimeString(calendarStartTime, "Calendar start time");
+  const calendarEndMinutes = parseTimeString(calendarEndTime, "Calendar end time");
+
+  if (calendarEndMinutes <= calendarStartMinutes) {
+    throw new Error("Calendar end time must be later than the calendar start time.");
+  }
+
+  if (!Number.isInteger(strikeThreshold) || strikeThreshold < 1 || strikeThreshold > 10) {
+    throw new Error("Strike threshold must be an integer from 1 to 10.");
+  }
+
   return {
     dailyCount,
     cooldownDays,
     timezone,
-    autoGenerateHour
+    autoGenerateTime,
+    calendarStartTime,
+    calendarEndTime,
+    strikeThreshold
   };
+}
+
+function parseTimeString(value, label) {
+  const match = /^(\d{2}):(\d{2})$/.exec(String(value || ""));
+  if (!match) {
+    throw new Error(`${label} must use HH:MM in 24-hour time.`);
+  }
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    throw new Error(`${label} must use a valid 24-hour time.`);
+  }
+
+  return hours * 60 + minutes;
 }
 
 function validatePerson(input) {
@@ -494,15 +532,23 @@ function getPersonResponseStats(person) {
   const responded = reviewed.filter((reachout) => reachout.responded).length;
   const totalReachouts = person.reachouts.length;
   const pendingReachouts = person.reachouts.filter((reachout) => reachout.responded === null).length;
-  const responseRate = reviewed.length === 0 ? 100 : Math.round((responded / reviewed.length) * 100);
+  const responseRate = reviewed.length === 0 ? null : Math.round((responded / reviewed.length) * 100);
   const firstBond = person.bondHistory[0]?.bond ?? person.bond;
+  let consecutiveMisses = 0;
+  for (const reachout of person.reachouts) {
+    if (reachout.responded === true) {
+      break;
+    }
+    consecutiveMisses += 1;
+  }
 
   return {
     responseRate,
     totalReachouts,
     pendingReachouts,
     respondedReachouts: responded,
-    bondTrend: person.bond - firstBond
+    bondTrend: person.bond - firstBond,
+    consecutiveMisses
   };
 }
 
@@ -522,6 +568,7 @@ function serializePerson(person) {
     pendingReachouts: stats.pendingReachouts,
     respondedReachouts: stats.respondedReachouts,
     bondTrend: stats.bondTrend,
+    consecutiveMisses: stats.consecutiveMisses,
     reachouts: person.reachouts.map((reachout) => ({
       date: reachout.date,
       responded: reachout.responded
@@ -541,19 +588,19 @@ function computeMetrics(profile) {
 
   const allReviewed = people.flatMap((person) => person.reachouts.filter((reachout) => reachout.responded !== null));
   const allResponded = allReviewed.filter((reachout) => reachout.responded).length;
-  const overallResponseRate = allReviewed.length === 0 ? 100 : Math.round((allResponded / allReviewed.length) * 100);
+  const overallResponseRate = allReviewed.length === 0 ? null : Math.round((allResponded / allReviewed.length) * 100);
   const totalReachouts = people.reduce((sum, person) => sum + person.reachouts.length, 0);
   const pendingResponses = people.reduce((sum, person) => sum + person.reachouts.filter((reachout) => reachout.responded === null).length, 0);
 
   const strongestPerson = [...people].sort((left, right) => right.bond - left.bond)[0] || null;
   const bestResponder = [...people].sort((left, right) => {
-    const leftRate = getPersonResponseStats(left).responseRate;
-    const rightRate = getPersonResponseStats(right).responseRate;
+    const leftRate = getPersonResponseStats(left).responseRate ?? -1;
+    const rightRate = getPersonResponseStats(right).responseRate ?? -1;
     if (rightRate !== leftRate) {
       return rightRate - leftRate;
     }
     return right.bond - left.bond;
-  })[0] || null;
+  }).find((person) => getPersonResponseStats(person).responseRate !== null) || null;
 
   const bondChanges = people
     .map((person) => {
@@ -566,7 +613,21 @@ function computeMetrics(profile) {
         change: person.bond - firstBond
       };
     })
+    .filter((entry) => entry.change !== 0)
     .sort((left, right) => Math.abs(right.change) - Math.abs(left.change))
+    .slice(0, 5);
+
+  const strikeWatch = people
+    .map((person) => {
+      const stats = getPersonResponseStats(person);
+      return {
+        id: person.id,
+        name: [person.firstName, person.lastName].filter(Boolean).join(" "),
+        consecutiveMisses: stats.consecutiveMisses
+      };
+    })
+    .filter((entry) => entry.consecutiveMisses >= profile.settings.strikeThreshold)
+    .sort((left, right) => right.consecutiveMisses - left.consecutiveMisses)
     .slice(0, 5);
 
   return {
@@ -583,7 +644,8 @@ function computeMetrics(profile) {
       name: [bestResponder.firstName, bestResponder.lastName].filter(Boolean).join(" "),
       responseRate: getPersonResponseStats(bestResponder).responseRate
     } : null,
-    bondChanges
+    bondChanges,
+    strikeWatch
   };
 }
 
@@ -705,12 +767,17 @@ function getEligiblePeople(profile, today) {
 function hasReachedAutoGenerateTime(profile, now = new Date()) {
   const formatter = new Intl.DateTimeFormat("en-US", {
     timeZone: profile.settings.timezone,
-    hour: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
     hour12: false
   });
-
-  const hour = Number(formatter.format(now));
-  return Number.isInteger(hour) && hour >= profile.settings.autoGenerateHour;
+  const parts = formatter.formatToParts(now);
+  const values = {};
+  for (const part of parts) {
+    values[part.type] = part.value;
+  }
+  const currentMinutes = Number(values.hour || 0) * 60 + Number(values.minute || 0);
+  return currentMinutes >= parseTimeString(profile.settings.autoGenerateTime, "Auto-generate time");
 }
 
 async function generatePeopleForProfile(profile, options = {}) {
@@ -966,8 +1033,8 @@ async function syncGeneratedPeopleToGoogle(profile, selectedPeople, generatedDat
   });
 
   const eventId = `jarona${generatedDate.replace(/-/g, "")}`;
-  const startDateTime = `${generatedDate}T13:00:00`;
-  const endDateTime = `${generatedDate}T15:00:00`;
+  const startDateTime = `${generatedDate}T${profile.settings.calendarStartTime}:00`;
+  const endDateTime = `${generatedDate}T${profile.settings.calendarEndTime}:00`;
 
   await ensureJaronaCalendar(profile);
   await ensureGoogleAccessToken(profile);
@@ -1012,9 +1079,18 @@ async function syncGeneratedPeopleToGoogle(profile, selectedPeople, generatedDat
   }
 
   profile.googleIntegration.lastSyncAt = new Date().toISOString();
-  profile.googleIntegration.lastSyncMessage = `Google Calendar event created or updated for ${generatedDate} from 1:00 PM to 3:00 PM.`;
+  profile.googleIntegration.lastSyncMessage = `Google Calendar event created or updated for ${generatedDate} from ${formatTimeForDisplay(profile.settings.calendarStartTime)} to ${formatTimeForDisplay(profile.settings.calendarEndTime)}.`;
   profile.googleIntegration.lastSyncError = "";
   profile.googleIntegration.connected = true;
+}
+
+function formatTimeForDisplay(value) {
+  const [hoursRaw, minutesRaw] = String(value).split(":");
+  const hours = Number(hoursRaw);
+  const minutes = Number(minutesRaw);
+  const suffix = hours >= 12 ? "PM" : "AM";
+  const normalizedHours = hours % 12 || 12;
+  return `${normalizedHours}:${String(minutes).padStart(2, "0")} ${suffix}`;
 }
 
 function buildGoogleAuthUrl(profileId, store) {
@@ -1160,7 +1236,7 @@ function routeApi(request, response, pathname, url) {
         }
 
         const passwordData = createPasswordHash(rawPassword);
-        const settings = validateSettings({ timezone, autoGenerateHour: 12 }, DEFAULT_SETTINGS);
+        const settings = validateSettings({ timezone }, DEFAULT_SETTINGS);
         const timestamp = new Date().toISOString();
         const profile = normalizeProfile({
           id: crypto.randomUUID(),
@@ -1457,6 +1533,7 @@ function routeApi(request, response, pathname, url) {
               selectedPeople: generation.selectedPeople.map(serializePerson),
               trigger: generation.trigger,
               people: profile.people.map(serializePerson),
+              generationLog: (profile.generationLog || []).slice(0, 30),
               pendingResponseReview: getPendingResponseReview(profile, today),
               metrics: computeMetrics(profile),
               googleCalendar: serializeGoogleCalendar(profile)
@@ -1473,6 +1550,7 @@ function routeApi(request, response, pathname, url) {
             selectedPeople: generation.selectedPeople.map(serializePerson),
             trigger: generation.trigger,
             people: profile.people.map(serializePerson),
+            generationLog: (profile.generationLog || []).slice(0, 30),
             pendingResponseReview: getPendingResponseReview(profile, today),
             metrics: computeMetrics(profile),
             googleCalendar: serializeGoogleCalendar(profile),
