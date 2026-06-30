@@ -4,7 +4,8 @@
   "description": "Personal website for staying in touch with friends.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "run-scheduled": "node server.js --run-scheduled"
   },
   "license": "MIT"
 }
