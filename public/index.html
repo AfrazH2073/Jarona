@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Jarona</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Jarona</p>
+          <h1>Stay close on purpose.</h1>
+          <p class="subtitle">Pick who to reach out to today without losing the bigger picture.</p>
+        </div>
+
+        <div class="topbar-actions">
+          <div class="date-card">
+            <span class="date-label">Today</span>
+            <strong id="currentDate">--</strong>
+          </div>
+
+          <div class="profile-card">
+            <label for="profileSelect">Profiles</label>
+            <div class="profile-controls">
+              <select id="profileSelect"></select>
+              <button id="switchProfileButton" class="secondary-button" type="button">Switch</button>
+            </div>
+            <div class="profile-buttons">
+              <button id="loginButton" class="secondary-button" type="button">Log In</button>
+              <button id="registerButton" class="accent-button" type="button">Create Profile</button>
+              <button id="logoutButton" class="ghost-button hidden" type="button">Log Out</button>
+            </div>
+            <p id="activeProfileLabel" class="small-note">No active profile</p>
+          </div>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="panel people-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">People List</p>
+              <h2>Your ongoing circle</h2>
+            </div>
+            <button id="addPersonButton" class="icon-button" type="button" aria-label="Add person">+</button>
+          </div>
+
+          <div class="sort-row">
+            <label for="sortField">Sort by</label>
+            <select id="sortField">
+              <option value="firstName">First Name</option>
+              <option value="lastName">Last Name</option>
+              <option value="bond">Bond</option>
+              <option value="location">Location</option>
+              <option value="metAt">When We Met</option>
+            </select>
+
+            <label for="sortDirection">Direction</label>
+            <select id="sortDirection">
+              <option value="asc">Ascending</option>
+              <option value="desc">Descending</option>
+            </select>
+          </div>
+
+          <div id="peopleList" class="people-list"></div>
+        </section>
+
+        <section class="panel action-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Daily Generator</p>
+              <h2>Who should you reach out to?</h2>
+            </div>
+          </div>
+
+          <div class="result-card">
+            <button id="generateButton" class="generate-button" type="button">Generate</button>
+            <p id="generationStatus" class="status-text">Log in and press generate when you are ready.</p>
+            <div id="generationResults" class="generation-results"></div>
+          </div>
+
+          <div class="settings-card">
+            <h3>Generator settings</h3>
+
+            <div class="setting-block">
+              <div class="setting-header">
+                <label for="dailyCountRange">People selected each day</label>
+                <input id="dailyCountInput" type="number" min="1" max="10" inputmode="numeric" />
+              </div>
+              <input id="dailyCountRange" type="range" min="1" max="10" step="1" />
+              <p class="small-note">Choose between 1 and 10 people each day.</p>
+            </div>
+
+            <div class="setting-block">
+              <div class="setting-header">
+                <label for="cooldownRange">Day cooldown before repeat</label>
+                <input id="cooldownInput" type="number" min="0" max="30" inputmode="numeric" />
+              </div>
+              <input id="cooldownRange" type="range" min="0" max="30" step="1" />
+              <p class="small-note">A selected person cannot appear again until the cooldown passes.</p>
+            </div>
+
+            <button id="saveSettingsButton" class="secondary-button" type="button">Save Settings</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="personModal" class="modal">
+      <form id="personForm" class="modal-card" method="dialog">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Friend Details</p>
+            <h3 id="personModalTitle">Add person</h3>
+          </div>
+          <button id="closePersonModalButton" class="ghost-button" type="button">Close</button>
+        </div>
+
+        <div class="form-grid">
+          <label>
+            First Name / Username *
+            <input id="personFirstName" name="firstName" type="text" required />
+          </label>
+
+          <label>
+            Last Name
+            <input id="personLastName" name="lastName" type="text" />
+          </label>
+
+          <label>
+            Location Based In
+            <input id="personLocation" name="location" type="text" />
+          </label>
+
+          <label>
+            When did we meet?
+            <input id="personMetAt" name="metAt" type="date" />
+          </label>
+        </div>
+
+        <div class="bond-section">
+          <div class="setting-header">
+            <label for="personBondRange">Bond *</label>
+            <input id="personBondInput" name="bond" type="number" min="1" max="10" required inputmode="numeric" />
+          </div>
+          <input id="personBondRange" name="bondRange" type="range" min="1" max="10" step="1" />
+          <div id="bondLegend" class="bond-legend"></div>
+        </div>
+
+        <p id="personFormError" class="error-text hidden"></p>
+
+        <div class="modal-actions">
+          <button id="savePersonButton" class="accent-button" type="submit">Save Person</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="authModal" class="modal">
+      <form id="authForm" class="modal-card auth-card" method="dialog">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Profile Access</p>
+            <h3 id="authModalTitle">Log in</h3>
+          </div>
+          <button id="closeAuthModalButton" class="ghost-button" type="button">Close</button>
+        </div>
+
+        <label>
+          Username
+          <input id="authUsername" name="username" type="text" required />
+        </label>
+
+        <label>
+          Password
+          <input id="authPassword" name="password" type="password" required />
+        </label>
+
+        <p id="authHelperText" class="small-note">Use your profile credentials to access your data.</p>
+        <p id="authError" class="error-text hidden"></p>
+
+        <div class="modal-actions">
+          <button id="submitAuthButton" class="accent-button" type="submit">Continue</button>
+        </div>
+      </form>
+    </dialog>
+
+    <template id="personCardTemplate">
+      <article class="person-card">
+        <div class="person-card-main">
+          <div class="person-name-row">
+            <h3 class="person-name"></h3>
+            <button class="edit-button" type="button" aria-label="Edit person">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 20h4l10-10-4-4L4 16v4zm13.7-11.3 1.6-1.6a1 1 0 0 0 0-1.4l-1.3-1.3a1 1 0 0 0-1.4 0L15 6l2.7 2.7z"></path>
+              </svg>
+            </button>
+          </div>
+          <p class="person-bond"></p>
+        </div>
+        <dl class="person-meta"></dl>
+      </article>
+    </template>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>

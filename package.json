@@ -1,0 +1,10 @@
+{
+  "name": "jarona",
+  "version": "1.0.0",
+  "description": "Personal website for staying in touch with friends.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "license": "MIT"
+}
