@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: jarona
+    runtime: node
+    plan: free
+    buildCommand: "npm install"
+    startCommand: "npm start"

@@ -235,3 +235,79 @@ What these mean:
 - If you close the browser tab, your saved data does not disappear
 - If you stop the server, the site goes offline until you run `npm start` again
 - If you want to use this from anywhere, not just your home Wi-Fi, the next step would be deploying it to a real web host
+
+## Deploying Online For Free With Render
+
+As of June 29, 2026:
+
+- Render still offers a free web service tier
+- Railway is generally not the better free choice anymore
+
+This project is now set up so Render can run it directly.
+
+### Important Warning Before You Deploy
+
+Right now, this app saves data in:
+
+```text
+data/store.json
+```
+
+That works well on your computer, but on a free Render web service this file should be treated as temporary.
+
+That means:
+
+- Your website can go online for free
+- Your profiles and friend list may be lost after redeploys, restarts, or instance replacement
+- This is okay for testing, but not ideal for long-term personal use
+
+If you want truly reliable long-term saved data, the next step would be moving storage to a real database.
+
+### Step-By-Step: How To Deploy On Render
+
+1. Push this project to GitHub.
+2. Go to [https://render.com](https://render.com).
+3. Create an account or log in.
+4. In Render, press `New +`.
+5. Choose `Web Service`.
+6. Connect your GitHub account if Render asks.
+7. Select this repository.
+8. Use these settings:
+   - `Runtime`: `Node`
+   - `Build Command`: `npm install`
+   - `Start Command`: `npm start`
+9. Choose the `Free` plan.
+10. Press `Create Web Service`.
+11. Wait for the deploy to finish.
+12. Open the Render URL it gives you.
+
+### If Render Detects Settings Automatically
+
+That is okay too.
+
+This repo includes:
+
+- [render.yaml](/Users/ahameed/Documents/GitHub/Jarona/render.yaml)
+
+So Render may auto-fill the correct setup.
+
+### How To Use It After Deploying
+
+1. Open the Render website URL on your computer or iPhone.
+2. Create a profile.
+3. Add people.
+4. Save your settings.
+5. Press `Generate`.
+
+### Best Use Of The Free Render Version
+
+The free Render deploy is best for:
+
+- Testing the site online
+- Accessing it from your phone anywhere
+- Sharing the interface between devices
+
+The free Render deploy is not best for:
+
+- Permanent long-term storage of your friend list
+- Trusting `store.json` to survive indefinitely
